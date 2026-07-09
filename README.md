@@ -1,6 +1,6 @@
 # resnet-study
 ### ResNet34 : test_1
-![alt text](image.png)
-![alt text](image-1.png)
-![alt text](image-2.png)
-![alt text](image-3.png)
+![alt text](README_res/image.png)
+![alt text](README_res/image-1.png)
+![alt text](README_res/image-2.png)
+![alt text](README_res/image-3.png)
