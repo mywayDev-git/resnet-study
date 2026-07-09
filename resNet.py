@@ -15,6 +15,12 @@ import torchvision.models as models
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader, random_split, Subset
 
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
+from sklearn.metrics import classification_report
+
 # %%
 # 난수 생성의 기준값(Seed) 설정
 # 같은 Seed를 사용하면 매번 동일한 난수가 생성되어 실험을 재현할 수 있음
@@ -199,6 +205,8 @@ print(images.shape)
 print(labels.shape)
 
 # %%
+MODEL_NAME = "ResNet34"
+
 weights = models.ResNet34_Weights.IMAGENET1K_V1
 
 resnet = models.resnet34(weights=weights)
@@ -296,6 +304,34 @@ total = sum(
 
 print(f"Trainable Parameters : {trainable:,}")
 print(f"Total Parameters     : {total:,}")
+
+# %%
+print("=" * 50)
+print("Hyperparameters")
+print("=" * 50)
+
+print(f"Model           : {MODEL_NAME}")
+print(f"Epochs          : {epochs}")
+print(f"Batch Size      : {train_loader.batch_size}")
+print(f"Learning Rate   : {optimizer.param_groups[0]['lr']}")
+print(f"Optimizer       : {optimizer.__class__.__name__}")
+print(f"Loss Function   : {criterion.__class__.__name__}")
+
+print(f"Weight Decay    : {optimizer.param_groups[0]['weight_decay']}")
+print(f"Momentum        : {optimizer.param_groups[0].get('momentum', 0)}")
+
+print(f"Train Size      : {len(train_dataset)}")
+print(f"Validation Size : {len(val_dataset)}")
+print(f"Test Size       : {len(test_dataset)}")
+print(f"Classes         : {len(train_dataset.classes)}")
+
+print(f"Device          : {device}")
+print(f"Random Seed     : {SEED}")
+
+print(f"Early Stopping  : True")
+print(f"Patience        : {patience}")
+
+print("=" * 50)
 
 # %%
 # epochs 횟수만큼 전체 학습 반복
@@ -557,6 +593,55 @@ plt.grid(True)
 plt.legend()
 
 plt.show()
+
+# %%
+resnet.eval()
+
+all_labels = []
+all_preds = []
+
+with torch.no_grad():
+
+    for images, labels in val_loader:      # test_loader를 사용해도 됨
+
+        images = images.to(device)
+        labels = labels.to(device)
+
+        outputs = resnet(images)
+        _, predicted = torch.max(outputs, 1)
+
+        all_labels.extend(labels.cpu().numpy())
+        all_preds.extend(predicted.cpu().numpy())
+
+accuracy = accuracy_score(all_labels, all_preds)
+precision = precision_score(
+    all_labels,
+    all_preds,
+    average="weighted"
+)
+recall = recall_score(
+    all_labels,
+    all_preds,
+    average="weighted"
+)
+f1 = f1_score(
+    all_labels,
+    all_preds,
+    average="weighted"
+)
+
+print(f"Accuracy : {accuracy:.4f}")
+print(f"Precision: {precision:.4f}")
+print(f"Recall   : {recall:.4f}")
+print(f"F1-score : {f1:.4f}")
+
+# %%
+# 클래스별 결과
+print(classification_report(
+    all_labels,
+    all_preds,
+    target_names=train_dataset.classes
+))
 
 # %%
 # Prediction Visualization
