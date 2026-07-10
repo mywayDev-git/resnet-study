@@ -83,12 +83,8 @@ class CustomCIFAR100(Dataset):
         self.data = entry["data"]
         self.labels = entry["fine_labels"]
 
-        # (N,3072)
-        # -> (N,3,32,32)
         self.data = self.data.reshape(-1, 3, 32, 32)
 
-        # (N,3,32,32)
-        # -> (N,32,32,3)
         self.data = self.data.transpose((0, 2, 3, 1))
 
         with open(os.path.join(root, "meta"), "rb") as f:
@@ -173,21 +169,21 @@ val_data = Subset(val_dataset, val_indices)
 # %%
 train_loader = DataLoader(
     train_data,
-    batch_size=128,
+    batch_size=32,
     shuffle=True,
     pin_memory=True
 )
 
 val_loader = DataLoader(
     val_data,
-    batch_size=128,
+    batch_size=32,
     shuffle=False,
     pin_memory=True
 )
 
 test_loader = DataLoader(
     test_dataset,
-    batch_size=128,
+    batch_size=32,
     shuffle=False,
     # num_workers=4,        # 데이터를 읽는 Worker(Process) 개수
     pin_memory=True         # CPU 메모리를 Pinned Memory(Page-Locked Memory)로 할당, images = images.to(device)를 실행할 때 CPU → GPU 전송 속도를 높여 줍니다
@@ -205,11 +201,11 @@ print(images.shape)
 print(labels.shape)
 
 # %%
-MODEL_NAME = "ResNet18"
+MODEL_NAME = "ResNet50"
 
-weights = models.ResNet18_Weights.IMAGENET1K_V1
+weights = models.ResNet50_Weights.IMAGENET1K_V1
 
-resnet = models.resnet18(weights=weights)
+resnet = models.resnet50(weights=weights)
 
 print("Original FC")
 print(resnet.fc)
