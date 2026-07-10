@@ -1,5 +1,7 @@
 # resnet-study
-### ResNet34 : test_1
+### ResNet34 : test_2
+- M : Batch size 128 → 32
+
 ![alt text](README_res/image.png)
 ![alt text](README_res/image-1.png)
 ![alt text](README_res/image-2.png)

@@ -173,21 +173,21 @@ val_data = Subset(val_dataset, val_indices)
 # %%
 train_loader = DataLoader(
     train_data,
-    batch_size=128,
+    batch_size=32,
     shuffle=True,
     pin_memory=True
 )
 
 val_loader = DataLoader(
     val_data,
-    batch_size=128,
+    batch_size=32,
     shuffle=False,
     pin_memory=True
 )
 
 test_loader = DataLoader(
     test_dataset,
-    batch_size=128,
+    batch_size=32,
     shuffle=False,
     # num_workers=4,        # 데이터를 읽는 Worker(Process) 개수
     pin_memory=True         # CPU 메모리를 Pinned Memory(Page-Locked Memory)로 할당, images = images.to(device)를 실행할 때 CPU → GPU 전송 속도를 높여 줍니다
