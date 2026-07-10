@@ -205,11 +205,11 @@ print(images.shape)
 print(labels.shape)
 
 # %%
-MODEL_NAME = "ResNet34"
+MODEL_NAME = "ResNet18"
 
-weights = models.ResNet34_Weights.IMAGENET1K_V1
+weights = models.ResNet18_Weights.IMAGENET1K_V1
 
-resnet = models.resnet34(weights=weights)
+resnet = models.resnet18(weights=weights)
 
 print("Original FC")
 print(resnet.fc)
