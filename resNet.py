@@ -173,28 +173,28 @@ val_data = Subset(val_dataset, val_indices)
 # %%
 train_loader = DataLoader(
     train_data,
-    batch_size=32,
+    batch_size=256,
     shuffle=True,
     pin_memory=True
 )
 
 val_loader = DataLoader(
     val_data,
-    batch_size=32,
+    batch_size=256,
     shuffle=False,
     pin_memory=True
 )
 
 test_loader = DataLoader(
     test_dataset,
-    batch_size=32,
+    batch_size=256,
     shuffle=False,
     # num_workers=4,        # 데이터를 읽는 Worker(Process) 개수
     pin_memory=True         # CPU 메모리를 Pinned Memory(Page-Locked Memory)로 할당, images = images.to(device)를 실행할 때 CPU → GPU 전송 속도를 높여 줍니다
 )
 
 # %%
-print("Train Dataset :", len(train_dataset))
+print("Train Dataset :", len(train_data))
 print("Validation :", len(val_data))
 print("Test Dataset :", len(test_dataset))
 print("Number of Classes :", len(train_dataset.classes))
@@ -215,8 +215,12 @@ print("Original FC")
 print(resnet.fc)
 
 num_ftrs = resnet.fc.in_features
-resnet.fc = nn.Linear(num_ftrs, 100)
 
+dropout = nn.Dropout(0.3)
+resnet.fc = nn.Sequential(
+    dropout,
+    nn.Linear(num_ftrs, 100)
+)
 resnet = resnet.to(device)
 
 print("\nModified FC")
@@ -313,6 +317,7 @@ print("=" * 50)
 print(f"Model           : {MODEL_NAME}")
 print(f"Epochs          : {epochs}")
 print(f"Batch Size      : {train_loader.batch_size}")
+print(f"Drop out        : {dropout}")
 print(f"Learning Rate   : {optimizer.param_groups[0]['lr']}")
 print(f"Optimizer       : {optimizer.__class__.__name__}")
 print(f"Loss Function   : {criterion.__class__.__name__}")
@@ -320,8 +325,8 @@ print(f"Loss Function   : {criterion.__class__.__name__}")
 print(f"Weight Decay    : {optimizer.param_groups[0]['weight_decay']}")
 print(f"Momentum        : {optimizer.param_groups[0].get('momentum', 0)}")
 
-print(f"Train Size      : {len(train_dataset)}")
-print(f"Validation Size : {len(val_dataset)}")
+print(f"Train Size      : {len(train_data)}")
+print(f"Validation Size : {len(val_data)}")
 print(f"Test Size       : {len(test_dataset)}")
 print(f"Classes         : {len(train_dataset.classes)}")
 
