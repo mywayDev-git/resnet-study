@@ -1,0 +1,17 @@
+{
+    "model": "resnet34",
+    "freeze_level": 63,
+    "drop_out": 0.3,
+    "epochs": 30,
+    "batch_size": 128,
+    "lr": 0.0001,
+    "optimizer": "adam",
+    "momentum": 0.9,
+    "weight_decay": 0.0005,
+    "patience": 7,
+    "label_smoothing": 0.1,
+    "seed": 42,
+    "save_dir": "study_results/06_optimizer_adam",
+    "best_val_acc": 85.02,
+    "test_acc": 84.09
+}

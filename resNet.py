@@ -1,155 +1,191 @@
-# %%
 import os
 import random
 import pickle
 import numpy as np
 import kagglehub
 from PIL import Image
-
 import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import torchvision.models as models
-
 from torchvision import transforms
-from torch.utils.data import Dataset, DataLoader, random_split, Subset
+from torch.utils.data import Dataset, DataLoader, Subset
 
+<<<<<<< Updated upstream
 # %%
 # 난수 생성의 기준값(Seed) 설정
 # 같은 Seed를 사용하면 매번 동일한 난수가 생성되어 실험을 재현할 수 있음
 SEED = 42
+=======
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
 
-# Python 기본 random 라이브러리의 난수 생성 Seed 설정
-random.seed(SEED)
+import argparse
+import logging
+import json
+import csv
+from datetime import datetime
+>>>>>>> Stashed changes
 
-# NumPy의 난수 생성 Seed 설정
-np.random.seed(SEED)
+# ==========================================
+# 1. 하이퍼파라미터 및 설정 (Parser 확장)
+# ==========================================
+def get_args():
+    parser = argparse.ArgumentParser(description="Advanced CIFAR-100 Training")
+    
+    # 모델 관련
+    parser.add_argument("--model", type=str, default="resnet34", choices=["resnet18", "resnet34", "resnet50"])
+    parser.add_argument("--freeze_level", type=int, default=63, 
+                        help="Binary flags for training: bit0:FC, bit1:L4, bit2:L3, bit3:L2, bit4:L1, bit5:Stem (e.g., 3=FC+L4)")
+    parser.add_argument("--drop_out", type=float, default=0.3)
+    
+    # 학습 관련
+    parser.add_argument("--epochs", type=int, default=40)
+    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--lr", type=float, default=0.001)
+    parser.add_argument("--optimizer", type=str, default="sgd", choices=["sgd", "adam"])
+    parser.add_argument("--momentum", type=float, default=0.9)
+    parser.add_argument("--weight_decay", type=float, default=5e-4)
+    parser.add_argument("--patience", type=int, default=7)
+    parser.add_argument("--label_smoothing", type=float, default=0.1)
+    
+    # 시스템 및 재현성
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--save_dir", type=str, default="results")
+    
+    try:
+        return parser.parse_args()
+    except:
+        return parser.parse_args([])
 
-# PyTorch(CPU)의 난수 생성 Seed 설정
-# 가중치 초기화, 데이터 섞기(shuffle) 등 CPU에서 발생하는 난수에 적용
-torch.manual_seed(SEED)
+args = get_args()
 
-# CUDA(GPU)를 사용할 수 있는지 확인
-if torch.cuda.is_available():
-    # 현재 GPU의 난수 생성 Seed 설정
-    torch.cuda.manual_seed(SEED)
+# 폴더 생성 및 로그 설정
+exp_name = f"{args.model}_f{args.freeze_level}_{args.optimizer}_lr{args.lr}_bs{args.batch_size}"
+current_save_dir = os.path.join(args.save_dir, exp_name)
+os.makedirs(current_save_dir, exist_ok=True)
 
-    # 여러 개의 GPU를 사용하는 경우 모든 GPU의 Seed를 동일하게 설정
-    torch.cuda.manual_seed_all(SEED)
+logging.basicConfig(
+    filename=os.path.join(current_save_dir, "train.log"),
+    level=logging.INFO,
+    format="%(asctime)s | %(message)s"
+)
 
-# cuDNN이 항상 동일한 결과를 내는 알고리즘만 사용하도록 설정
-# 실행 속도는 다소 느려질 수 있지만 결과를 재현할 수 있음
-torch.backends.cudnn.deterministic = True
+# ==========================================
+# 2. 재현성 설정
+# ==========================================
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
-# 입력 크기에 따라 가장 빠른 알고리즘을 자동 탐색하는 기능 비활성화
-# True이면 속도는 빨라질 수 있지만 실행마다 다른 알고리즘이 선택되어
-# 결과가 조금씩 달라질 수 있으므로 재현성을 위해 False로 설정
-torch.backends.cudnn.benchmark = False
-
-# %%
+set_seed(args.seed)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-print("Device :", device)
-print("PyTorch :", torch.__version__)
+# ==========================================
+# 3. 모델 구축 및 2진수 기반 동결 로직
+# ==========================================
+def build_model(args):
+    # 모델 동적 로드
+    model_name = args.model.lower()
+    if model_name == "resnet18":
+        model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    elif model_name == "resnet34":
+        model = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
+    elif model_name == "resnet50":
+        model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+    
+    # FC 레이어 수정
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Sequential(
+        nn.Dropout(args.drop_out),
+        nn.Linear(num_ftrs, 100)
+    )
+    
+    # 2진수 기반 레이어 동결 (freeze_level)
+    # Bit 0: fc, 1: layer4, 2: layer3, 3: layer2, 4: layer1, 5: stem(conv1, bn1)
+    mapping = {
+        0: [model.fc],
+        1: [model.layer4],
+        2: [model.layer3],
+        3: [model.layer2],
+        4: [model.layer1],
+        5: [model.conv1, model.bn1, model.maxpool]
+    }
+    
+    print("\n--- Layer Trainable Status (Binary Check) ---")
+    for bit, modules in mapping.items():
+        is_trainable = (args.freeze_level >> bit) & 1
+        for module in modules:
+            for param in module.parameters():
+                param.requires_grad = bool(is_trainable)
+        
+        status = "Trainable" if is_trainable else "Frozen"
+        print(f"Bit {bit} ({list(mapping.keys())[bit]}): {status}")
+    
+    return model.to(device)
 
-if torch.cuda.is_available():
-    print("CUDA :", torch.version.cuda)
-    print(torch.cuda.get_device_name(0))
+model = build_model(args)
 
-# %%
+# ==========================================
+# 4. 데이터 준비 (CIFAR-100)
+# ==========================================
 path = kagglehub.dataset_download("fedesoriano/cifar100")
 
-print(path)
-print(os.listdir(path))
-
-# %%
 class CustomCIFAR100(Dataset):
     def __init__(self, root, train=True, transform=None):
-
         self.transform = transform
-
         filename = "train" if train else "test"
-
         with open(os.path.join(root, filename), "rb") as f:
             entry = pickle.load(f, encoding="latin1")
-
-        self.data = entry["data"]
+        self.data = entry["data"].reshape(-1, 3, 32, 32).transpose((0, 2, 3, 1))
         self.labels = entry["fine_labels"]
-
-        # (N,3072)
-        # -> (N,3,32,32)
-        self.data = self.data.reshape(-1, 3, 32, 32)
-
-        # (N,3,32,32)
-        # -> (N,32,32,3)
-        self.data = self.data.transpose((0, 2, 3, 1))
-
         with open(os.path.join(root, "meta"), "rb") as f:
             meta = pickle.load(f, encoding="latin1")
-
         self.classes = meta["fine_label_names"]
 
-    def __len__(self):
-        return len(self.data)
-
+    def __len__(self): return len(self.data)
     def __getitem__(self, idx):
-        image = Image.fromarray(self.data[idx])
-        label = self.labels[idx]
+        img, label = Image.fromarray(self.data[idx]), self.labels[idx]
+        if self.transform: img = self.transform(img)
+        return img, label
 
-        if self.transform:
-            image = self.transform(image)
-
-        return image, label
-
-# %%
-MEAN = (0.5071, 0.4867, 0.4408)
-STD = (0.2675, 0.2565, 0.2761)
-
-train_transform = transforms.Compose([
+MEAN, STD = (0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)
+train_trf = transforms.Compose([
     transforms.Resize((224, 224)),
-    transforms.RandomCrop(224, padding=16),
     transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(
-        brightness=0.2,
-        contrast=0.2,
-        saturation=0.2,
-        hue=0.1
-    ),
-    transforms.ToTensor(),
-    transforms.Normalize(MEAN, STD),
-    transforms.RandomErasing(               # 순서 중요 (PIL Image가 아니라 Tensor를 입력으로 받는다)
-        p=0.25,
-        scale=(0.02, 0.15)
-    )
-])
-
-test_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize(MEAN, STD)
 ])
+test_trf = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor(), transforms.Normalize(MEAN, STD)])
 
+full_train = CustomCIFAR100(path, train=True, transform=train_trf)
+val_ds = CustomCIFAR100(path, train=True, transform=test_trf)
+test_ds = CustomCIFAR100(path, train=False, transform=test_trf)
 
-# %%
-train_dataset = CustomCIFAR100(
-    root=path,
-    train=True,
-    transform=train_transform
-)
+indices = torch.randperm(len(full_train), generator=torch.Generator().manual_seed(args.seed))
+train_idx, val_idx = indices[:45000], indices[45000:]
+train_loader = DataLoader(Subset(full_train, train_idx), batch_size=args.batch_size, shuffle=True, pin_memory=True)
+val_loader = DataLoader(Subset(val_ds, val_idx), batch_size=args.batch_size, shuffle=False, pin_memory=True)
+test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
-val_dataset = CustomCIFAR100(
-    root=path,
-    train=True,
-    transform=test_transform
-)
+# ==========================================
+# 5. 최적화 및 학습 루프
+# ==========================================
+criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
+trainable_params = [p for p in model.parameters() if p.requires_grad]
 
-test_dataset = CustomCIFAR100(
-    root=path,
-    train=False,
-    transform=test_transform
-)
+if args.optimizer == "sgd":
+    optimizer = optim.SGD(trainable_params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+else:
+    optimizer = optim.Adam(trainable_params, lr=args.lr, weight_decay=args.weight_decay)
 
+<<<<<<< Updated upstream
 # %%
 train_size = int(len(train_dataset) * 0.9)
 val_size = len(train_dataset) - train_size
@@ -258,17 +294,16 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
 )
 
 # Mixed Precision
+=======
+scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
+>>>>>>> Stashed changes
 scaler = torch.amp.GradScaler("cuda", enabled=torch.cuda.is_available())
 
-# %%
-# Early Stopping
-patience = 5
-
-counter = 0
-
 best_val_acc = 0.0
-best_val_loss = float("inf")
+counter = 0
+history = {"t_loss": [], "v_loss": [], "t_acc": [], "v_acc": []}
 
+<<<<<<< Updated upstream
 # %%
 # History
 train_losses = []
@@ -322,189 +357,83 @@ for epoch in range(epochs):
         labels = labels.to(device, non_blocking=True)
 
         # 이전 Batch에서 계산된 Gradient 초기화
+=======
+for epoch in range(args.epochs):
+    model.train()
+    t_loss, t_corr, t_total = 0, 0, 0
+    for imgs, lbls in train_loader:
+        imgs, lbls = imgs.to(device, non_blocking=True), lbls.to(device, non_blocking=True)
+>>>>>>> Stashed changes
         optimizer.zero_grad()
-
-        # Mixed Precision(자동 혼합 정밀도) 시작
-        # CUDA 사용 시 일부 연산을 float16으로 수행하여
-        # 메모리 사용량 감소 및 학습 속도 향상
-        with torch.autocast(
-            device_type=device.type,
-            enabled=torch.cuda.is_available()
-        ):
-            # Forward Propagation
-            # 입력 이미지를 모델에 통과시켜 예측값(Logits) 계산
-            outputs = resnet(images)
-
-            # 예측값과 정답을 이용하여 Loss 계산
-            loss = criterion(outputs, labels)
-
-        # Loss를 Scale하여 작은 Gradient가 0이 되는 것을 방지
+        with torch.autocast(device_type=device.type, enabled=torch.cuda.is_available()):
+            out = model(imgs)
+            loss = criterion(out, lbls)
         scaler.scale(loss).backward()
-
-        # Optimizer가 Scale된 Gradient를 이용하여 Weight 업데이트
         scaler.step(optimizer)
-
-        # Scale 값 자동 조정
         scaler.update()
-
-        # Batch Loss 누적
-        train_loss += loss.item()
-
-        # 가장 큰 Logit 값을 가진 클래스 선택
-        # "_" : 최대값(Logit)
-        # predicted : 최대값의 인덱스(예측 클래스)
-        _, predicted = torch.max(outputs, 1)
-
-        # 현재 Batch의 이미지 개수 누적
-        train_total += labels.size(0)
-
-        # 맞춘 개수 누적
-        train_correct += (predicted == labels).sum().item()
-
-    # Epoch 평균 Loss 계산
-    train_loss /= len(train_loader)
-
-    # Epoch Accuracy 계산(%)
-    train_acc = 100 * train_correct / train_total
-
-    # ============================
-    # Validation Mode
-    # ============================
-    resnet.eval()
-    # 평가 모드로 변경
-    # Dropout 비활성화
-    # BatchNorm은 저장된 평균과 분산 사용
-
-    val_loss = 0.0
-    val_correct = 0
-    val_total = 0
-
-    # Validation에서는 Gradient 계산 비활성화
-    # 메모리 절약 및 속도 향상
+        
+        t_loss += loss.item()
+        t_corr += out.max(1)[1].eq(lbls).sum().item()
+        t_total += lbls.size(0)
+    
+    model.eval()
+    v_loss, v_corr, v_total = 0, 0, 0
     with torch.no_grad():
+        for imgs, lbls in val_loader:
+            imgs, lbls = imgs.to(device), lbls.to(device)
+            out = model(imgs)
+            v_loss += criterion(out, lbls).item()
+            v_corr += out.max(1)[1].eq(lbls).sum().item()
+            v_total += lbls.size(0)
 
-        # Validation 데이터 반복
-        for images, labels in val_loader:
-
-            images = images.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True)
-
-            # Validation도 Mixed Precision 사용
-            with torch.autocast(
-                device_type=device.type,
-                enabled=torch.cuda.is_available()
-            ):
-
-                # Forward만 수행
-                outputs = resnet(images)
-
-                # Validation Loss 계산
-                loss = criterion(outputs, labels)
-
-            # Loss 누적
-            val_loss += loss.item()
-
-            # 가장 큰 확률의 클래스 선택
-            _, predicted = torch.max(outputs, 1)
-
-            # Validation 이미지 개수 누적
-            val_total += labels.size(0)
-
-            # 맞춘 개수 누적
-            val_correct += (predicted == labels).sum().item()
-
-    # 평균 Validation Loss 계산
-    val_loss /= len(val_loader)
-
-    # Validation Accuracy 계산
-    val_acc = 100 * val_correct / val_total
-
-    # Learning Rate Scheduler 업데이트
+    # 에폭 결과 정리
+    train_acc, val_acc = 100.*t_corr/t_total, 100.*v_corr/v_total
+    history["t_loss"].append(t_loss/len(train_loader)); history["v_loss"].append(v_loss/len(val_loader))
+    history["t_acc"].append(train_acc); history["v_acc"].append(val_acc)
+    
+    msg = f"Ep {epoch+1:02d} | TLoss:{history['t_loss'][-1]:.3f} TAcc:{train_acc:.2f}% | VLoss:{history['v_loss'][-1]:.3f} VAcc:{val_acc:.2f}%"
+    print(msg); logging.info(msg)
     scheduler.step()
 
-    # Loss 기록
-    train_losses.append(train_loss)
-    val_losses.append(val_loss)
-
-    # Accuracy 기록
-    train_accs.append(train_acc)
-    val_accs.append(val_acc)
-
-    # 현재 Learning Rate 확인
-    current_lr = optimizer.param_groups[0]["lr"]
-
-    # 현재 Epoch 결과 출력
-    print(
-        f"Epoch [{epoch+1:03d}/{epochs}] "
-        f"LR:{current_lr:.6f} | "
-        f"Train Loss:{train_loss:.4f} "
-        f"Train Acc:{train_acc:.2f}% | "
-        f"Val Loss:{val_loss:.4f} "
-        f"Val Acc:{val_acc:.2f}%"
-    )
-
-    # ============================
-    # Early Stopping
-    # ============================
-
-    # Validation Accuracy가 향상되었거나,
-    # Accuracy가 같지만 Loss가 감소했다면
-    if (
-        val_acc > best_val_acc
-        or
-        (
-            val_acc == best_val_acc
-            and val_loss < best_val_loss
-        )
-    ):
-
-        # Early Stopping 카운터 초기화
-        counter = 0
-
-        # 가장 성능이 좋은 모델 저장
-        torch.save(
-            resnet.state_dict(),
-            "best_model.pth"
-        )
-
+    # 모델 저장 및 조기 종료
+    if val_acc > best_val_acc:
         best_val_acc = val_acc
-        best_val_loss = val_loss
-
+        torch.save(model.state_dict(), os.path.join(current_save_dir, "best_model.pth"))
+        counter = 0
     else:
-        # 성능이 향상되지 않았으므로 카운터 증가
         counter += 1
+        if counter >= args.patience:
+            print("Early Stopping..."); break
 
-    # patience 이상 성능 향상이 없으면 학습 종료
-    if counter >= patience:
-        print()
-        print("Early Stopping")
-        break
+# ==========================================
+# 6. 최종 평가 및 시각화 저장
+# ==========================================
+def save_plots(history, save_dir):
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1); plt.plot(history['t_loss'], label='Train'); plt.plot(history['v_loss'], label='Val')
+    plt.title('Loss'); plt.legend()
+    plt.subplot(1, 2, 2); plt.plot(history['t_acc'], label='Train'); plt.plot(history['v_acc'], label='Val')
+    plt.title('Accuracy'); plt.legend()
+    plt.savefig(os.path.join(save_dir, "curves.png"))
+    plt.close()
 
-# %%
-# Load Best Model
-print("\nLoading Best Model...\n")
-resnet.load_state_dict(torch.load("best_model.pth"))
-resnet.eval()
+save_plots(history, current_save_dir)
 
-# %%
-# Test
-test_loss = 0.0
-
-correct = 0
-total = 0
-
+# 테스트 세트 검증
+model.load_state_dict(torch.load(os.path.join(current_save_dir, "best_model.pth")))
+model.eval()
+all_lbl, all_prd = [], []
 with torch.no_grad():
-    for images, labels in test_loader:
-        images = images.to(device, non_blocking=True)
-        labels = labels.to(device, non_blocking=True)
+    for imgs, lbls in test_loader:
+        imgs = imgs.to(device)
+        out = model(imgs)
+        all_lbl.extend(lbls.numpy())
+        all_prd.extend(out.max(1)[1].cpu().numpy())
 
-        with torch.autocast(
-            device_type=device.type,
-            enabled=torch.cuda.is_available()
-        ):
-            outputs = resnet(images)
-            loss = criterion(outputs, labels)
+test_acc = accuracy_score(all_lbl, all_prd) * 100
+print(f"\nFinal Test Accuracy: {test_acc:.2f}%")
 
+<<<<<<< Updated upstream
         test_loss += loss.item()
 
         _, predicted = torch.max(outputs, 1)
@@ -608,5 +537,13 @@ plt.show()
 
 # %%
 print("\nTraining Finished.")
+=======
+# 리포트 및 요약 저장
+with open(os.path.join(current_save_dir, "summary.json"), "w") as f:
+    json.dump({**vars(args), "best_val_acc": best_val_acc, "test_acc": test_acc}, f, indent=4)
+>>>>>>> Stashed changes
 
+with open(os.path.join(current_save_dir, "classification_report.txt"), "w") as f:
+    f.write(classification_report(all_lbl, all_prd, target_names=full_train.classes))
 
+print(f"Completed. Results in: {current_save_dir}")
