@@ -6,12 +6,12 @@
     "batch_size": 128,
     "lr": 0.001,
     "optimizer": "sgd",
-    "momentum": 0.9,
+    "momentum": 0.0,
     "weight_decay": 0.0005,
     "patience": 7,
     "label_smoothing": 0.1,
     "seed": 42,
-    "save_dir": "study_results/01_baseline",
-    "best_val_acc": 82.3,
-    "test_acc": 81.75
+    "save_dir": "study_results/14_no_momentum",
+    "best_val_acc": 74.3,
+    "test_acc": 73.81
 }

@@ -4,14 +4,14 @@
     "drop_out": 0.3,
     "epochs": 40,
     "batch_size": 128,
-    "lr": 0.001,
-    "optimizer": "sgd",
+    "lr": 0.0001,
+    "optimizer": "adam",
     "momentum": 0.9,
     "weight_decay": 0.0005,
     "patience": 7,
     "label_smoothing": 0.1,
     "seed": 42,
-    "save_dir": "study_results/01_baseline",
-    "best_val_acc": 82.3,
-    "test_acc": 81.75
+    "save_dir": "study_results/03_adam_standard",
+    "best_val_acc": 84.98,
+    "test_acc": 83.91
 }

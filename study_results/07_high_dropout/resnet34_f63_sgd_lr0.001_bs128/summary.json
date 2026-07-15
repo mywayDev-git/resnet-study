@@ -1,7 +1,7 @@
 {
     "model": "resnet34",
     "freeze_level": 63,
-    "drop_out": 0.3,
+    "drop_out": 0.5,
     "epochs": 40,
     "batch_size": 128,
     "lr": 0.001,
@@ -11,7 +11,7 @@
     "patience": 7,
     "label_smoothing": 0.1,
     "seed": 42,
-    "save_dir": "study_results/01_baseline",
-    "best_val_acc": 82.3,
-    "test_acc": 81.75
+    "save_dir": "study_results/07_high_dropout",
+    "best_val_acc": 82.44,
+    "test_acc": 81.98
 }

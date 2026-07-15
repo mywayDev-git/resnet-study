@@ -7,11 +7,11 @@
     "lr": 0.001,
     "optimizer": "sgd",
     "momentum": 0.9,
-    "weight_decay": 0.0005,
+    "weight_decay": 0.01,
     "patience": 7,
     "label_smoothing": 0.1,
     "seed": 42,
-    "save_dir": "study_results/01_baseline",
-    "best_val_acc": 82.3,
-    "test_acc": 81.75
+    "save_dir": "study_results/09_heavy_wd",
+    "best_val_acc": 82.04,
+    "test_acc": 81.72
 }

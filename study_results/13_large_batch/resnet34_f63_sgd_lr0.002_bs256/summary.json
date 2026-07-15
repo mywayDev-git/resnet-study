@@ -3,15 +3,15 @@
     "freeze_level": 63,
     "drop_out": 0.3,
     "epochs": 40,
-    "batch_size": 128,
-    "lr": 0.001,
+    "batch_size": 256,
+    "lr": 0.002,
     "optimizer": "sgd",
     "momentum": 0.9,
     "weight_decay": 0.0005,
     "patience": 7,
     "label_smoothing": 0.1,
     "seed": 42,
-    "save_dir": "study_results/01_baseline",
-    "best_val_acc": 82.3,
-    "test_acc": 81.75
+    "save_dir": "study_results/13_large_batch",
+    "best_val_acc": 82.54,
+    "test_acc": 81.58999999999999
 }

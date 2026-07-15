@@ -1,5 +1,5 @@
 {
-    "model": "resnet34",
+    "model": "resnet18",
     "freeze_level": 63,
     "drop_out": 0.3,
     "epochs": 40,
@@ -11,7 +11,7 @@
     "patience": 7,
     "label_smoothing": 0.1,
     "seed": 42,
-    "save_dir": "study_results/01_baseline",
-    "best_val_acc": 82.3,
-    "test_acc": 81.75
+    "save_dir": "study_results/10_resnet18",
+    "best_val_acc": 81.36,
+    "test_acc": 80.21000000000001
 }
