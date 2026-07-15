@@ -93,10 +93,17 @@ def build_model(args):
     
     # FC 레이어 수정
     num_ftrs = model.fc.in_features
-    model.fc = nn.Sequential(
-        nn.Dropout(args.drop_out),
-        nn.Linear(num_ftrs, 100)
-    )
+    layers = []
+    layers.append(nn.Linear(num_ftrs, 1024))
+    layers.append(nn.BatchNorm1d(1024))
+    layers.append(nn.ReLU(inplace=True))
+    layers.append(nn.Dropout(0.3))
+    layers.append(nn.Linear(1024, 512))
+    layers.append(nn.BatchNorm1d(512))
+    layers.append(nn.ReLU(inplace=True))
+    layers.append(nn.Dropout(0.15))
+    layers.append(nn.Linear(512, 100))
+    model.fc = nn.Sequential(*layers)
     
     # 2진수 기반 레이어 동결 (freeze_level)
     # Bit 0: fc, 1: layer4, 2: layer3, 3: layer2, 4: layer1, 5: stem(conv1, bn1)
