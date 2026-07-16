@@ -1,0 +1,17 @@
+{
+    "model": "efficientnet_b0",
+    "freeze_level": 63,
+    "drop_out": 0.3,
+    "epochs": 30,
+    "batch_size": 128,
+    "lr": 0.01,
+    "optimizer": "sgd",
+    "momentum": 0.9,
+    "weight_decay": 0.0005,
+    "patience": 7,
+    "label_smoothing": 0.1,
+    "seed": 42,
+    "save_dir": "study_results/05_eff_sgd_test",
+    "best_val_acc": 86.76,
+    "test_acc": 86.57000000000001
+}

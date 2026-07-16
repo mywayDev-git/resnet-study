@@ -25,10 +25,11 @@ import json
 def get_args():
     parser = argparse.ArgumentParser(description="Advanced CIFAR-100 Training")
     
-    # 모델 관련
-    parser.add_argument("--model", type=str, default="resnet34", choices=["resnet18", "resnet34", "resnet50"])
+    # 모델 관련 (efficientnet_b0 추가)
+    parser.add_argument("--model", type=str, default="resnet34", 
+                        choices=["resnet18", "resnet34", "resnet50", "efficientnet_b0"])
     parser.add_argument("--freeze_level", type=int, default=63, 
-                        help="Binary flags for training: bit0:FC, bit1:L4, bit2:L3, bit3:L2, bit4:L1, bit5:Stem (e.g., 3=FC+L4)")
+                        help="Binary flags for training: bit0:Head, bit1:Block_Late, bit2:Block_MidLate, bit3:Block_Mid, bit4:Block_Early, bit5:Stem")
     parser.add_argument("--drop_out", type=float, default=0.3)
     
     # 학습 관련
@@ -82,49 +83,75 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # 3. 모델 구축 및 2진수 기반 동결 로직
 # ==========================================
 def build_model(args):
-    # 모델 동적 로드
     model_name = args.model.lower()
-    if model_name == "resnet18":
-        model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-    elif model_name == "resnet34":
-        model = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
-    elif model_name == "resnet50":
-        model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
     
-    # FC 레이어 수정
-    num_ftrs = model.fc.in_features
-    layers = []
-    layers.append(nn.Linear(num_ftrs, 1024))
-    layers.append(nn.BatchNorm1d(1024))
-    layers.append(nn.ReLU(inplace=True))
-    layers.append(nn.Dropout(0.3))
-    layers.append(nn.Linear(1024, 512))
-    layers.append(nn.BatchNorm1d(512))
-    layers.append(nn.ReLU(inplace=True))
-    layers.append(nn.Dropout(0.15))
-    layers.append(nn.Linear(512, 100))
-    model.fc = nn.Sequential(*layers)
+    # --- 모델 로드 및 구조 정의 ---
+    if "resnet" in model_name:
+        if model_name == "resnet18":
+            model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+        elif model_name == "resnet34":
+            model = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
+        elif model_name == "resnet50":
+            model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+        
+        num_ftrs = model.fc.in_features
+        # ResNet용 동결 매핑
+        mapping = {
+            0: [model.fc],
+            1: [model.layer4],
+            2: [model.layer3],
+            3: [model.layer2],
+            4: [model.layer1],
+            5: [model.conv1, model.bn1, model.maxpool]
+        }
+        
+    elif "efficientnet" in model_name:
+        model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.IMAGENET1K_V1)
+        num_ftrs = model.classifier[1].in_features
+        
+        # EfficientNet용 동결 매핑 (features 리스트를 ResNet과 유사하게 5단계로 나눔)
+        # Bit 5: Stem, 4: Early, 3: Mid, 2: MidLate, 1: Late, 0: Classifier
+        mapping = {
+            0: [model.classifier],
+            1: [model.features[7:], model.features[8]], # Late blocks
+            2: [model.features[5:7]],                  # Mid-Late blocks
+            3: [model.features[3:5]],                  # Mid blocks
+            4: [model.features[1:3]],                  # Early blocks
+            5: [model.features[0]]                     # Stem (Conv2d + BN + Activation)
+        }
+
+    # --- 공통 분류기(Head) 교체 로직 ---
+    # 사용자님이 설계하신 1024 -> 512 -> 100 구조 적용
+    head = nn.Sequential(
+        nn.Linear(num_ftrs, 1024),
+        nn.BatchNorm1d(1024),
+        nn.ReLU(inplace=True),
+        nn.Dropout(0.4),
+        nn.Linear(1024, 512),
+        nn.BatchNorm1d(512),
+        nn.ReLU(inplace=True),
+        nn.Dropout(0.25),
+        nn.Linear(512, 100) # 마지막은 ReLU/Dropout 없이 마무리
+    )
+
+    if "resnet" in model_name:
+        model.fc = head
+    else:
+        model.classifier = head
     
-    # 2진수 기반 레이어 동결 (freeze_level)
-    # Bit 0: fc, 1: layer4, 2: layer3, 3: layer2, 4: layer1, 5: stem(conv1, bn1)
-    mapping = {
-        0: [model.fc],
-        1: [model.layer4],
-        2: [model.layer3],
-        3: [model.layer2],
-        4: [model.layer1],
-        5: [model.conv1, model.bn1, model.maxpool]
-    }
-    
-    print("\n--- Layer Trainable Status (Binary Check) ---")
+    # --- 2진수 기반 레이어 동결 적용 ---
+    print(f"\n--- {args.model} Layer Trainable Status (Binary Check) ---")
     for bit, modules in mapping.items():
         is_trainable = (args.freeze_level >> bit) & 1
-        for module in modules:
-            for param in module.parameters():
-                param.requires_grad = bool(is_trainable)
+        for module_group in modules:
+            # 리스트일 수도 있고 단일 모듈일 수도 있으므로 처리
+            m_list = module_group if isinstance(module_group, (list, nn.Sequential, nn.ModuleList)) else [module_group]
+            for m in m_list:
+                for param in m.parameters():
+                    param.requires_grad = bool(is_trainable)
         
         status = "Trainable" if is_trainable else "Frozen"
-        print(f"Bit {bit} ({list(mapping.keys())[bit]}): {status}")
+        print(f"Bit {bit}: {status}")
     
     return model.to(device)
 
@@ -153,7 +180,9 @@ class CustomCIFAR100(Dataset):
         if self.transform: img = self.transform(img)
         return img, label
 
+# CIFAR-100 표준 정규화 값
 MEAN, STD = (0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)
+#MEAN, STD = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
 train_trf = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.RandomHorizontalFlip(),
@@ -190,6 +219,7 @@ best_val_acc = 0.0
 counter = 0
 history = {"t_loss": [], "v_loss": [], "t_acc": [], "v_acc": []}
 
+print(f"\nStarting training with {args.model}...")
 for epoch in range(args.epochs):
     model.train()
     t_loss, t_corr, t_total = 0, 0, 0
@@ -217,7 +247,6 @@ for epoch in range(args.epochs):
             v_corr += out.max(1)[1].eq(lbls).sum().item()
             v_total += lbls.size(0)
 
-    # 에폭 결과 정리
     train_acc, val_acc = 100.*t_corr/t_total, 100.*v_corr/v_total
     history["t_loss"].append(t_loss/len(train_loader)); history["v_loss"].append(v_loss/len(val_loader))
     history["t_acc"].append(train_acc); history["v_acc"].append(val_acc)
@@ -226,7 +255,6 @@ for epoch in range(args.epochs):
     print(msg); logging.info(msg)
     scheduler.step()
 
-    # 모델 저장 및 조기 종료
     if val_acc > best_val_acc:
         best_val_acc = val_acc
         torch.save(model.state_dict(), os.path.join(current_save_dir, "best_model.pth"))
@@ -242,15 +270,14 @@ for epoch in range(args.epochs):
 def save_plots(history, save_dir):
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1); plt.plot(history['t_loss'], label='Train'); plt.plot(history['v_loss'], label='Val')
-    plt.title('Loss'); plt.legend()
+    plt.title('Loss'); plt.legend(); plt.grid(True)
     plt.subplot(1, 2, 2); plt.plot(history['t_acc'], label='Train'); plt.plot(history['v_acc'], label='Val')
-    plt.title('Accuracy'); plt.legend()
+    plt.title('Accuracy'); plt.legend(); plt.grid(True)
     plt.savefig(os.path.join(save_dir, "curves.png"))
     plt.close()
 
 save_plots(history, current_save_dir)
 
-# 테스트 세트 검증
 model.load_state_dict(torch.load(os.path.join(current_save_dir, "best_model.pth")))
 model.eval()
 all_lbl, all_prd = [], []
@@ -264,7 +291,6 @@ with torch.no_grad():
 test_acc = accuracy_score(all_lbl, all_prd) * 100
 print(f"\nFinal Test Accuracy: {test_acc:.2f}%")
 
-# 리포트 및 요약 저장
 with open(os.path.join(current_save_dir, "summary.json"), "w") as f:
     json.dump({**vars(args), "best_val_acc": best_val_acc, "test_acc": test_acc}, f, indent=4)
 

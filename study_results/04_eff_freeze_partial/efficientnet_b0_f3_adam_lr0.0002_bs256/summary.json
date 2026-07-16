@@ -1,0 +1,17 @@
+{
+    "model": "efficientnet_b0",
+    "freeze_level": 3,
+    "drop_out": 0.3,
+    "epochs": 30,
+    "batch_size": 256,
+    "lr": 0.0002,
+    "optimizer": "adam",
+    "momentum": 0.9,
+    "weight_decay": 0.0005,
+    "patience": 7,
+    "label_smoothing": 0.1,
+    "seed": 42,
+    "save_dir": "study_results/04_eff_freeze_partial",
+    "best_val_acc": 74.56,
+    "test_acc": 73.97
+}
