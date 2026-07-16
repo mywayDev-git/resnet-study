@@ -12,6 +12,6 @@
     "label_smoothing": 0.1,
     "seed": 42,
     "save_dir": "study_results/14_no_momentum",
-    "best_val_acc": 74.3,
-    "test_acc": 73.81
+    "best_val_acc": 70.42,
+    "test_acc": 69.83
 }

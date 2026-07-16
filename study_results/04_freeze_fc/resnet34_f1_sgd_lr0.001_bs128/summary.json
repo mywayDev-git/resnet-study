@@ -12,6 +12,6 @@
     "label_smoothing": 0.1,
     "seed": 42,
     "save_dir": "study_results/04_freeze_fc",
-    "best_val_acc": 61.14,
-    "test_acc": 60.519999999999996
+    "best_val_acc": 62.26,
+    "test_acc": 61.309999999999995
 }

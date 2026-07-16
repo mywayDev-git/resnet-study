@@ -12,6 +12,6 @@
     "label_smoothing": 0.1,
     "seed": 42,
     "save_dir": "study_results/11_resnet50",
-    "best_val_acc": 84.26,
-    "test_acc": 83.14
+    "best_val_acc": 83.46,
+    "test_acc": 82.64
 }

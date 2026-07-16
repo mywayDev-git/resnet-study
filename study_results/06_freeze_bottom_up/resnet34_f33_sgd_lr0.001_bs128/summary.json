@@ -12,6 +12,6 @@
     "label_smoothing": 0.1,
     "seed": 42,
     "save_dir": "study_results/06_freeze_bottom_up",
-    "best_val_acc": 69.98,
-    "test_acc": 68.4
+    "best_val_acc": 70.0,
+    "test_acc": 69.31
 }

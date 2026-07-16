@@ -12,6 +12,6 @@
     "label_smoothing": 0.1,
     "seed": 42,
     "save_dir": "study_results/07_high_dropout",
-    "best_val_acc": 82.44,
-    "test_acc": 81.98
+    "best_val_acc": 82.96,
+    "test_acc": 81.83
 }

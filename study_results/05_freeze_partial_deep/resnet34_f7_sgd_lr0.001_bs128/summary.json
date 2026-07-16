@@ -13,5 +13,5 @@
     "seed": 42,
     "save_dir": "study_results/05_freeze_partial_deep",
     "best_val_acc": 79.22,
-    "test_acc": 79.0
+    "test_acc": 78.57
 }

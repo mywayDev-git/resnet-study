@@ -12,6 +12,6 @@
     "label_smoothing": 0.1,
     "seed": 42,
     "save_dir": "study_results/09_heavy_wd",
-    "best_val_acc": 82.04,
-    "test_acc": 81.72
+    "best_val_acc": 82.34,
+    "test_acc": 81.61
 }
