@@ -1,5 +1,18 @@
 # 🧪 CIFAR-100 실험 히스토리 및 분석 리포트
 
+```
+layers.append(nn.Linear(num_ftrs, 1024))
+layers.append(nn.BatchNorm1d(1024))
+layers.append(nn.ReLU(inplace=True))
+layers.append(nn.Dropout(0.3))
+layers.append(nn.Linear(1024, 512))
+layers.append(nn.BatchNorm1d(512))
+layers.append(nn.ReLU(inplace=True))
+layers.append(nn.Dropout(0.15))
+layers.append(nn.Linear(512, 100))
+model.fc = nn.Sequential(*layers)
+```
+
 > **총 실험 개수:** 14개 | **업데이트:** 2026-07-15 15:42
 
 ## 📊 전체 요약 (주요 변경점 위주)
