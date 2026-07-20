@@ -121,17 +121,18 @@ def build_model(args):
         }
 
     # --- 공통 분류기(Head) 교체 로직 ---
-    # 사용자님이 설계하신 1024 -> 512 -> 100 구조 적용
     head = nn.Sequential(
-        nn.Linear(num_ftrs, 1024),
-        nn.BatchNorm1d(1024),
-        nn.ReLU(inplace=True),
-        nn.Dropout(0.4),
-        nn.Linear(1024, 512),
-        nn.BatchNorm1d(512),
-        nn.ReLU(inplace=True),
-        nn.Dropout(0.25),
-        nn.Linear(512, 100) # 마지막은 ReLU/Dropout 없이 마무리
+        nn.Dropout(args.drop_out),
+        nn.Linear(num_ftrs, 100),
+        # nn.Linear(num_ftrs, 1024),
+        # nn.BatchNorm1d(1024),
+        # nn.ReLU(inplace=True),
+        # nn.Dropout(0.4),
+        # nn.Linear(1024, 512),
+        # nn.BatchNorm1d(512),
+        # nn.ReLU(inplace=True),
+        # nn.Dropout(0.25),
+        # nn.Linear(512, 100) # 마지막은 ReLU/Dropout 없이 마무리
     )
 
     if "resnet" in model_name:

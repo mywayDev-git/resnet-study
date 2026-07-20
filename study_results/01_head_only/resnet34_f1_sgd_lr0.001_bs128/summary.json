@@ -1,0 +1,17 @@
+{
+    "model": "resnet34",
+    "freeze_level": 1,
+    "drop_out": 0.3,
+    "epochs": 40,
+    "batch_size": 128,
+    "lr": 0.001,
+    "optimizer": "sgd",
+    "momentum": 0.9,
+    "weight_decay": 0.0005,
+    "patience": 7,
+    "label_smoothing": 0.1,
+    "seed": 42,
+    "save_dir": "study_results/01_head_only",
+    "best_val_acc": 61.14,
+    "test_acc": 60.519999999999996
+}
